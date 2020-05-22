@@ -1,0 +1,93 @@
+using System;
+using System.Reflection;
+
+namespace DI_Library
+{
+    [AttributeUsage(AttributeTargets.Class)]
+    public class Appcomponent : Attribute
+    {
+
+    }
+    [AttributeUsage(AttributeTargets.Field)]
+    public class Inject : System.Attribute
+    {
+
+    }
+
+    public class Objectcontext
+    {
+        public void Init(string NameOfProgram)
+        {
+            Assembly load = Assembly.LoadFrom(NameOfProgram+".dll");
+            Type[] AllTypes = load.GetTypes();
+
+            foreach (Type OneType in AllTypes)
+            {
+                Container.Types[OneType] = OneType;
+            }
+
+            foreach (Type EachType in AllTypes)
+            {
+                if (EachType.GetCustomAttribute(typeof(Appcomponent)) != null)
+                {
+                    Container.Resolve(EachType);
+                }
+            }
+
+            foreach (Type EachType in AllTypes)
+            {
+                if (EachType.GetCustomAttribute(typeof(Appcomponent)) != null)
+                {
+                    foreach (FieldInfo EachFieldInfo in EachType.GetFields())
+                    {
+                        if (EachFieldInfo.GetCustomAttribute(typeof(Inject)) != null)
+                        {
+                            EachFieldInfo.SetValue(Container.Instances[EachType], Container.Instances[EachFieldInfo.FieldType]);
+                        }
+                    }
+                }
+            }
+
+        }
+
+        public object GetComponent(Type TypeOfClass)
+        {
+            return Container.Instances[TypeOfClass];
+        }
+
+    }
+    
+    
+    internal class Container
+    {
+        internal static readonly Dictionary<Type, Type> Types = new Dictionary<Type, Type>();
+        internal static readonly Dictionary<Type, object> Instances = new Dictionary<Type, object>();
+
+        public static void Register<TInterface, TImplementation>() where TImplementation : TInterface
+        {
+            Types[typeof(TInterface)] = typeof(TImplementation);
+        }
+
+        internal static object Resolve(Type type)
+        {
+            var OneType = Types[type];
+            ConstructorInfo constructor = OneType.GetConstructors()[0];
+            ParameterInfo[] param = constructor.GetParameters();
+            if (param.Length == 0)
+            {
+                Instances[type] = Activator.CreateInstance(OneType);
+                return Activator.CreateInstance(OneType);
+            }
+            else
+            {
+                List<object> listOfParameters = new List<object>();
+                foreach (ParameterInfo info in param)
+                {
+                    listOfParameters.Add(Resolve(info.ParameterType));
+                }
+                return constructor.Invoke(listOfParameters.ToArray());
+            }
+
+        }
+    }
+}
